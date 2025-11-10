@@ -22,11 +22,14 @@
     "@mastra/libsql": "^0.16.2",
     "@mastra/loggers": "^0.10.19",
     "@mastra/memory": "^0.15.11",
+    "openai": "^6.8.1",
+    "pdf-parse": "^2.4.5",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
     "mastra": "^0.18.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
 }
