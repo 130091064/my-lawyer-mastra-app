@@ -1,6 +1,6 @@
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
-import { summonsExtractTool } from "../tools/summons-tool";
+import { summonsExtractTool, extractSummonsFromPdf } from "../tools/summons-tool";
 import { summonsAgent } from "../agents/summons-agent";
 
 // 第一步：调用工具解析 PDF
@@ -12,7 +12,10 @@ const extractStep = createStep({
   }),
   outputSchema: summonsExtractTool.outputSchema, // 复用工具的输出 schema
   execute: async ({ inputData }) => {
-    return summonsExtractTool.execute({ inputData });
+    if (!inputData) {
+      throw new Error("缺少传票文件内容");
+    }
+    return extractSummonsFromPdf(inputData.pdfBuffer);
   },
 });
 
@@ -49,13 +52,13 @@ const explainStep = createStep({
 - 被传唤人: ${summonedPerson ?? "未找到"}
 `;
 
-    const res = await summonsAgent.run({
-      messages: [{ role: "user", content: userPrompt }],
-    });
+    const res = await summonsAgent.generate([
+      { role: "user", content: userPrompt },
+    ]);
 
     return {
       structured: inputData,
-      explanation: res.outputText ?? "",
+      explanation: (res as any).outputText ?? "",
     };
   },
 });

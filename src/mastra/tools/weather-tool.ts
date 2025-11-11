@@ -39,12 +39,12 @@ export const weatherTool = createTool({
     location: z.string(),
   }),
   execute: async ({ context }) => {
-    return await getWeather(context.location);
+    return await fetchWeatherForLocation(context.location);
   },
 });
 
 // 调用 Open-Meteo 服务获取天气数据
-const getWeather = async (location: string) => {
+export const fetchWeatherForLocation = async (location: string) => {
   const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1`;
   const geocodingResponse = await fetch(geocodingUrl);
   const geocodingData = (await geocodingResponse.json()) as GeocodingResponse;
