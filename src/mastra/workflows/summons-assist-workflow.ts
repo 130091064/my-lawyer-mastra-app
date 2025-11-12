@@ -3,10 +3,6 @@ import { z } from "zod";
 import { Buffer } from "buffer";
 import { summonsExtractTool, extractSummonsFromPdf } from "../tools/summons-tool";
 import {
-  weatherTool,
-  fetchWeatherForLocation,
-} from "../tools/weather-tool";
-import {
   transportAdviceTool,
   generateTransportAdvice,
 } from "../tools/transport-tool";
@@ -19,7 +15,6 @@ const workflowInputSchema = z.object({
   pdfBuffer: z.instanceof(Buffer),
   userQuestion: z.string().optional(),
   stayDurationHours: z.number().min(0.5).max(6).optional(),
-  includeWeather: z.boolean().optional(),
   includeTransport: z.boolean().optional(),
   includePoi: z.boolean().optional(),
 });
@@ -27,7 +22,6 @@ const workflowInputSchema = z.object({
 const enrichedOutputSchema = z.object({
   structured: summonsExtractTool.outputSchema,
   userQuestion: z.string().optional(),
-  weather: weatherTool.outputSchema.nullable(),
   transport: transportAdviceTool.outputSchema.nullable(),
   poi: poiRecommendTool.outputSchema.nullable(),
 });
@@ -40,7 +34,6 @@ const extractSummonsStep = createStep({
     structured: summonsExtractTool.outputSchema,
     userQuestion: z.string().optional(),
     stayDurationHours: z.number().optional(),
-    includeWeather: z.boolean().optional(),
     includeTransport: z.boolean().optional(),
     includePoi: z.boolean().optional(),
   }),
@@ -53,14 +46,15 @@ const extractSummonsStep = createStep({
       structured,
       userQuestion: inputData.userQuestion,
       stayDurationHours: inputData.stayDurationHours,
-      includeWeather: inputData.includeWeather,
       includeTransport: inputData.includeTransport,
       includePoi: inputData.includePoi,
     };
   },
 });
 
-const deriveLocationForWeather = (structured: z.infer<typeof summonsExtractTool.outputSchema>) => {
+const deriveLocationFromSummons = (
+  structured: z.infer<typeof summonsExtractTool.outputSchema>
+) => {
   const normalize = (value?: string | null) => value?.trim() ?? '';
   const court = normalize(structured.court);
   if (court) return court;
@@ -81,19 +75,15 @@ const deriveLocationForWeather = (structured: z.infer<typeof summonsExtractTool.
 
 const gatherContextStep = createStep({
   id: "summons-assist:gather",
-  description: "根据用户问题选择性查询天气/交通/景点",
+  description: "根据用户问题选择性查询交通/景点",
   inputSchema: extractSummonsStep.outputSchema,
   outputSchema: enrichedOutputSchema,
   execute: async ({ inputData }) => {
     const { structured, userQuestion } = inputData;
     const normalizedQuestion = (userQuestion ?? "").toLowerCase();
 
-    const location = deriveLocationForWeather(structured);
+    const location = deriveLocationFromSummons(structured);
 
-    const shouldWeather =
-      typeof inputData.includeWeather === "boolean"
-        ? inputData.includeWeather
-        : /\bweather\b|天气/.test(normalizedQuestion);
     const shouldTransport =
       typeof inputData.includeTransport === "boolean"
         ? inputData.includeTransport
@@ -104,23 +94,10 @@ const gatherContextStep = createStep({
         : /景点|周边|poi|吃|玩/.test(normalizedQuestion);
 
     const tasks: Array<Promise<void>> = [];
-    let weatherResult: z.infer<typeof weatherTool.outputSchema> | null = null;
     let transportResult:
       | z.infer<typeof transportAdviceTool.outputSchema>
       | null = null;
     let poiResult: z.infer<typeof poiRecommendTool.outputSchema> | null = null;
-
-    if (shouldWeather && location) {
-      tasks.push(
-        fetchWeatherForLocation(location)
-          .then((data) => {
-            weatherResult = data;
-          })
-          .catch(() => {
-            weatherResult = null;
-          })
-      );
-    }
 
     if (shouldTransport && location) {
       tasks.push(
@@ -152,7 +129,6 @@ const gatherContextStep = createStep({
     return {
       structured,
       userQuestion,
-      weather: weatherResult,
       transport: transportResult,
       poi: poiResult,
     };
@@ -167,7 +143,7 @@ const composeAnswerStep = createStep({
     narrative: z.string(),
   }),
   execute: async ({ inputData }) => {
-    const { structured, userQuestion, weather, transport, poi } = inputData;
+    const { structured, userQuestion, transport, poi } = inputData;
     const lines: string[] = [];
 
     lines.push("以下是传票关键信息：");
@@ -177,12 +153,6 @@ const composeAnswerStep = createStep({
     lines.push(`- 法院：${structured.court ?? "未提供"}`);
     lines.push(`- 开庭地址：${structured.courtAddress ?? "未提供"}`);
     lines.push(`- 被传唤人：${structured.summonedPerson ?? "未提供"}`);
-
-    if (weather) {
-      lines.push(
-        `\n天气提示：${weather.location} 当前气温约 ${weather.temperature}°C（体感 ${weather.feelsLike}°C），湿度 ${weather.humidity}% ，风速 ${weather.windSpeed}m/s，天气状况为 ${weather.conditions}。`
-      );
-    }
 
     if (transport) {
       if (transport.bestArrivalWindow) {
@@ -242,7 +212,6 @@ const composeAnswerStep = createStep({
     return {
       structured,
       userQuestion,
-      weather,
       transport,
       poi,
       narrative: lines.join("\n"),
@@ -252,7 +221,7 @@ const composeAnswerStep = createStep({
 
 export const summonsAssistWorkflow = createWorkflow({
   id: "summons-assist-workflow",
-  description: "上传传票 PDF + 问题 → 解析并输出天气、交通与景点建议",
+  description: "上传传票 PDF + 问题 → 解析并输出交通与景点建议",
   inputSchema: workflowInputSchema,
   outputSchema: composeAnswerStep.outputSchema,
 })

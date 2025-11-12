@@ -6,7 +6,7 @@ import OpenAI from "openai";
 import { Buffer } from "buffer";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process?.env?.OPENAI_API_KEY  || env?.OPENAI_API_KEY
 });
 
 export const extractSummonsFromPdf = async (pdfBuffer: Buffer) => {

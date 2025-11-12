@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "mastra dev",
     "build": "mastra build",
-    "start": "mastra start"
+    "start": "mastra start",
+    "deploy": "pnpm run build && wrangler deploy",
+    "logs": "wrangler tail"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +20,7 @@
   },
   "dependencies": {
     "@mastra/core": "^0.24.0",
+    "@mastra/deployer-cloudflare": "^0.14.17",
     "@mastra/evals": "^0.14.3",
     "@mastra/libsql": "^0.16.2",
     "@mastra/loggers": "^0.10.19",
@@ -30,6 +33,7 @@
     "@types/node": "^24.10.0",
     "mastra": "^0.18.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "^4.47.0"
   }
 }

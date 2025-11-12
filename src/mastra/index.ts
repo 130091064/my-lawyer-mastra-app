@@ -13,6 +13,7 @@ import {
 import { summonsAgent } from "./agents/summons-agent";
 import { summonsWorkflow } from "./workflows/summons-workflow";
 import { summonsAssistWorkflow } from "./workflows/summons-assist-workflow";
+import { CloudflareDeployer } from "@mastra/deployer-cloudflare";
 
 const summonsAssistRequestSchema = z.object({
   pdfBase64: z.string(),
@@ -141,4 +142,34 @@ export const mastra = new Mastra({
       },
     ],
   },
+  deployer: new CloudflareDeployer({
+    projectName: "my-lawyer-mastra-app",
+    routes: [
+      {
+        pattern: "bot.deepseafish.work/*",
+        zone_name: "deepseafish.work",
+        custom_domain: true,
+      },
+    ],
+    workerNamespace: "my-namespace",
+    env: {
+      NODE_ENV: "production",
+      API_KEY: "<api-key>",
+      OPENAI_API_KEY: "<openai-api-key>",
+    },
+    // d1Databases: [
+    //   {
+    //     binding: "DB",
+    //     database_name: "my-database",
+    //     database_id: "d1-database-id",
+    //     preview_database_id: "your-preview-database-id",
+    //   },
+    // ],
+    // kvNamespaces: [
+    //   {
+    //     binding: "CACHE",
+    //     id: "kv-namespace-id",
+    //   },
+    // ],
+  }),
 });

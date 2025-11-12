@@ -5,7 +5,7 @@ export const callOpenAIJson = async (
   prompt: string,
   model = "gpt-4o-mini"
 ): Promise<any> => {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!(process?.env?.OPENAI_API_KEY  || env?.OPENAI_API_KEY)) {
     throw new Error("OPENAI_API_KEY 未设置，无法调用 OpenAI 接口");
   }
 

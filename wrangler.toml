@@ -1,0 +1,8 @@
+name = "my-lawyer-mastra-app"
+main = ".mastra/output/index.mjs" 
+compatibility_date = "2025-11-12"
+compatibility_flags = ["nodejs_compat"]
+
+[[routes]]
+pattern = "bot.deepseafish.work/*"
+zone_name = "deepseafish.work"
