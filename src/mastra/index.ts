@@ -178,7 +178,7 @@ export const mastra = new Mastra({
     env: {
       NODE_ENV: "production",
       API_KEY: "<api-key>",
-      // OPENAI_API_KEY: "<openai-api-key>",
+      OPENAI_API_KEY: "<openai-api-key>",
     },
   }),
 });
