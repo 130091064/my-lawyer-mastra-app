@@ -41,6 +41,25 @@ export const mastra = new Mastra({
   },
   server: {
     bodySizeLimit: 10 * 1024 * 1024,
+    beforeHandle: [
+      async (c, next) => {
+        try {
+          const res = await next();
+          applyCorsHeaders(c); // ⭐ 所有成功响应都加 CORS
+          return res;
+        } catch (error) {
+          // ⭐ 所有未捕获异常也加 CORS
+          applyCorsHeaders(c);
+          return c.json(
+            {
+              error: "UNHANDLED_ERROR",
+              message: error instanceof Error ? error.message : "Unknown error",
+            },
+            500
+          );
+        }
+      },
+    ],
     apiRoutes: [
       {
         method: "OPTIONS",
