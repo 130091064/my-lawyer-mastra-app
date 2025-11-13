@@ -94,20 +94,15 @@ const gatherContextStep = createStep({
 
     if ((shouldTransport || shouldPoi) && location) {
       const stayDuration = inputData.stayDurationHours ?? 2;
-      try {
-        const combined = await generateContextAdvice({
-          location,
-          hearingTime: structured.hearingTime ?? undefined,
-          stayDurationHours: stayDuration,
-          includeTransport: shouldTransport,
-          includePoi: shouldPoi,
-        });
-        transportResult = combined.transport;
-        poiResult = combined.poi;
-      } catch (error) {
-        transportResult = shouldTransport ? null : transportResult;
-        poiResult = shouldPoi ? null : poiResult;
-      }
+      const combined = await generateContextAdvice({
+        location,
+        hearingTime: structured.hearingTime ?? undefined,
+        stayDurationHours: stayDuration,
+        includeTransport: shouldTransport,
+        includePoi: shouldPoi,
+      });
+      transportResult = combined.transport;
+      poiResult = combined.poi;
     }
 
     return {
