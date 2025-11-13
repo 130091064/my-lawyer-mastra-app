@@ -1,18 +1,14 @@
-// src/mastra/tools/summons-tool.ts
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
-import { PDFParse } from "pdf-parse";
-import OpenAI from "openai";
-import { Buffer } from "buffer";
+import { callOpenAIJson } from "../utils/openai-json";
+import { extractPdfTextFromBase64 } from "../utils/extractPdfToText";
 
-const openai = new OpenAI({
-  apiKey: process?.env?.OPENAI_API_KEY  || env?.OPENAI_API_KEY
-});
 
-export const extractSummonsFromPdf = async (pdfBuffer: Buffer) => {
-  const parsed = await new PDFParse({ data: pdfBuffer });
-  const result = await parsed.getText();
-  const text = result.text;
+
+
+export const extractSummonsFromPdf = async (pdfBuffer: string) => {
+  // 这里调用 unpdf 解析
+  const text = await extractPdfTextFromBase64(pdfBuffer);
 
   const prompt = `
 你是一名熟悉中国诉讼文书的法律助理。现在给你一份“开庭传票”的完整文字内容，请你从中提取以下字段，并以 JSON 格式返回（字段名必须是英文）：
@@ -36,22 +32,7 @@ export const extractSummonsFromPdf = async (pdfBuffer: Buffer) => {
 ${text}
 `;
 
-  const response = await openai.responses.create({
-    model: "gpt-4o-mini",
-    input: prompt,
-  });
-
-  const jsonText = (response.output_text ?? "").trim();
-  const normalizedJsonText = jsonText
-    .replace(/^```json\s*/i, "")
-    .replace(/```$/i, "")
-    .trim();
-  let parsedJson: any;
-  try {
-    parsedJson = JSON.parse(normalizedJsonText);
-  } catch (error) {
-    throw new Error("解析模型返回的 JSON 失败: " + normalizedJsonText);
-  }
+  const parsedJson = await callOpenAIJson(prompt);
 
   return {
     caseNumber: parsedJson.caseNumber ?? null,
@@ -71,9 +52,7 @@ export const summonsExtractTool = createTool({
 
   // 工具输入：传票 PDF 的二进制内容
   inputSchema: z.object({
-    pdfBuffer: z
-      .instanceof(Buffer)
-      .describe("开庭传票 PDF 文件内容（Node.js Buffer）"),
+    pdfBuffer: z.string().describe("开庭传票 PDF 文件内容（Node.js Buffer）"),
   }),
 
   // 工具输出：结构化信息

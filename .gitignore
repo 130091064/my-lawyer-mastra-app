@@ -6,4 +6,4 @@ dist
 .env
 *.db
 *.db-*
-.dev.vars
+.dev.vars*

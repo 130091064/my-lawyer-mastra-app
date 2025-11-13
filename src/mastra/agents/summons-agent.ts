@@ -1,6 +1,5 @@
 import { Agent } from "@mastra/core/agent";
 import { summonsExtractTool } from "../tools/summons-tool";
-import { weatherTool } from "../tools/weather-tool";
 import { transportAdviceTool } from "../tools/transport-tool";
 import { poiRecommendTool } from "../tools/poi-tool";
 
@@ -15,5 +14,5 @@ export const summonsAgent = new Agent({
  - 回答时先给出结构化的信息列表，然后再给说明。
 `,
   model: "openai/gpt-4o-mini",
-  tools: [summonsExtractTool, weatherTool, transportAdviceTool, poiRecommendTool],
+  tools: [summonsExtractTool, transportAdviceTool, poiRecommendTool],
 });

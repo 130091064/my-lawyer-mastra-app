@@ -1,6 +1,8 @@
 import OpenAI from "openai";
+import { getEnv } from "./env";
 
-// Reuse a single OpenAI client to avoid重复初始化并保持包体积最小
-export const openaiClient = new OpenAI({
-  apiKey: process?.env?.OPENAI_API_KEY  || env?.OPENAI_API_KEY,
-});
+// 每次用的时候现取 key，兼容 Node + Worker
+export function getOpenAIClient() {
+  const apiKey = getEnv("OPENAI_API_KEY");
+  return new OpenAI({ apiKey });
+}

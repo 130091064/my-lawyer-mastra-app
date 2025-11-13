@@ -1,6 +1,5 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
-import { Buffer } from "buffer";
 import { summonsExtractTool, extractSummonsFromPdf } from "../tools/summons-tool";
 import {
   transportAdviceTool,
@@ -12,7 +11,7 @@ import {
 } from "../tools/poi-tool";
 
 const workflowInputSchema = z.object({
-  pdfBuffer: z.instanceof(Buffer),
+  pdfBuffer: z.string(),
   userQuestion: z.string().optional(),
   stayDurationHours: z.number().min(0.5).max(6).optional(),
   includeTransport: z.boolean().optional(),

@@ -8,7 +8,7 @@ const extractStep = createStep({
   id: "extract-summons",
   description: "解析开庭传票 PDF，提取关键信息",
   inputSchema: z.object({
-    pdfBuffer: z.instanceof(Buffer),
+    pdfBuffer: z.string(),
   }),
   outputSchema: summonsExtractTool.outputSchema, // 复用工具的输出 schema
   execute: async ({ inputData }) => {
@@ -68,7 +68,7 @@ export const summonsWorkflow = createWorkflow({
   id: "summons-workflow",
   description: "上传开庭传票 PDF → 解析 → 生成说明",
   inputSchema: z.object({
-    pdfBuffer: z.instanceof(Buffer),
+    pdfBuffer: z.string()
   }),
   outputSchema: explainStep.outputSchema,
 })

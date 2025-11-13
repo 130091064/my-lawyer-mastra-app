@@ -1,15 +1,6 @@
 import { Mastra } from "@mastra/core/mastra";
 import { PinoLogger } from "@mastra/loggers";
-import { LibSQLStore } from "@mastra/libsql";
 import { z } from "zod";
-import { Buffer } from "buffer";
-import { weatherWorkflow } from "./workflows/weather-workflow";
-import { weatherAgent } from "./agents/weather-agent";
-import {
-  toolCallAppropriatenessScorer,
-  completenessScorer,
-  translationScorer,
-} from "./scorers/weather-scorer";
 import { summonsAgent } from "./agents/summons-agent";
 import { summonsWorkflow } from "./workflows/summons-workflow";
 import { summonsAssistWorkflow } from "./workflows/summons-assist-workflow";
@@ -25,18 +16,8 @@ const summonsAssistRequestSchema = z.object({
 });
 
 export const mastra = new Mastra({
-  workflows: { weatherWorkflow, summonsWorkflow, summonsAssistWorkflow },
-  agents: { weatherAgent, summonsAgent },
-  scorers: {
-    toolCallAppropriatenessScorer,
-    completenessScorer,
-    translationScorer,
-  },
-  storage: new LibSQLStore({
-    // stores observability, scores, ... into memory storage, if it needs to persist, change to file:../mastra.db
-    // 将可观测性、评分等数据写入内存；若需持久化请改为 file:../mastra.db
-    url: ":memory:",
-  }),
+  workflows: { summonsWorkflow, summonsAssistWorkflow },
+  agents: { summonsAgent },
   logger: new PinoLogger({
     name: "Mastra",
     level: "info",
@@ -59,6 +40,13 @@ export const mastra = new Mastra({
         path: "/api/summons/assist",
         handler: async (c) => {
           try {
+            // ⭐ 关键：把 Cloudflare Worker 的 env 注入到 globalThis.__ENV__
+            if ((c as any).env) {
+              (globalThis as any).__ENV__ = {
+                ...(globalThis as any).__ENV__,
+                ...(c as any).env,
+              };
+            }
             const body = await c.req.json();
             const parsed = summonsAssistRequestSchema.safeParse(body);
             if (!parsed.success) {
@@ -77,9 +65,9 @@ export const mastra = new Mastra({
               includePoi,
             } = parsed.data;
 
-            let pdfBuffer: Buffer;
+            let pdfBuffer: string;
             try {
-              pdfBuffer = Buffer.from(pdfBase64, "base64");
+              pdfBuffer = pdfBase64;
             } catch (err) {
               return c.json({ error: "INVALID_PDF_BASE64" }, 400);
             }
@@ -155,21 +143,7 @@ export const mastra = new Mastra({
     env: {
       NODE_ENV: "production",
       API_KEY: "<api-key>",
-      OPENAI_API_KEY: "<openai-api-key>",
+      // OPENAI_API_KEY: "<openai-api-key>",
     },
-    // d1Databases: [
-    //   {
-    //     binding: "DB",
-    //     database_name: "my-database",
-    //     database_id: "d1-database-id",
-    //     preview_database_id: "your-preview-database-id",
-    //   },
-    // ],
-    // kvNamespaces: [
-    //   {
-    //     binding: "CACHE",
-    //     id: "kv-namespace-id",
-    //   },
-    // ],
   }),
 });

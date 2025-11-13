@@ -21,12 +21,11 @@
   "dependencies": {
     "@mastra/core": "^0.24.0",
     "@mastra/deployer-cloudflare": "^0.14.17",
-    "@mastra/evals": "^0.14.3",
     "@mastra/libsql": "^0.16.2",
     "@mastra/loggers": "^0.10.19",
     "@mastra/memory": "^0.15.11",
     "openai": "^6.8.1",
-    "pdf-parse": "^2.4.5",
+    "unpdf": "^1.4.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {
