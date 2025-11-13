@@ -34,11 +34,6 @@ export const mastra = new Mastra({
     name: "Mastra",
     level: "info",
   }),
-  telemetry: {
-    // Telemetry is deprecated and will be removed in the Nov 4th release
-    // 遥测功能即将弃用并会在 11 月 4 日的版本中移除
-    enabled: false,
-  },
   observability: {
     // Enables DefaultExporter and CloudExporter for AI tracing
     // 开启默认导出器与云端导出器，用于 AI 调用链追踪
