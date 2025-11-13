@@ -6,6 +6,18 @@ import { summonsWorkflow } from "./workflows/summons-workflow";
 import { summonsAssistWorkflow } from "./workflows/summons-assist-workflow";
 import { CloudflareDeployer } from "@mastra/deployer-cloudflare";
 
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const applyCorsHeaders = (c: any) => {
+  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+    c.header(key, value);
+  });
+};
+
 const summonsAssistRequestSchema = z.object({
   pdfBase64: z.string(),
   question: z.string().optional(),
@@ -36,10 +48,19 @@ export const mastra = new Mastra({
     bodySizeLimit: 10 * 1024 * 1024,
     apiRoutes: [
       {
+        method: "OPTIONS",
+        path: "/api/summons/assist",
+        handler: async (c) => {
+          applyCorsHeaders(c);
+          return c.text("", 204);
+        },
+      },
+      {
         method: "POST",
         path: "/api/summons/assist",
         handler: async (c) => {
           try {
+            applyCorsHeaders(c);
             // ⭐ 关键：把 Cloudflare Worker 的 env 注入到 globalThis.__ENV__
             if ((c as any).env) {
               (globalThis as any).__ENV__ = {
