@@ -1,14 +1,9 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
 import { summonsExtractTool, extractSummonsFromPdf } from "../tools/summons-tool";
-import {
-  transportAdviceTool,
-  generateTransportAdvice,
-} from "../tools/transport-tool";
-import {
-  poiRecommendTool,
-  getPoiRecommendations,
-} from "../tools/poi-tool";
+import { transportAdviceTool } from "../tools/transport-tool";
+import { poiRecommendTool } from "../tools/poi-tool";
+import { generateContextAdvice } from "../tools/context-tool";
 
 const workflowInputSchema = z.object({
   pdfBuffer: z.string(),
@@ -92,38 +87,28 @@ const gatherContextStep = createStep({
         ? inputData.includePoi
         : /景点|周边|poi|吃|玩/.test(normalizedQuestion);
 
-    const tasks: Array<Promise<void>> = [];
     let transportResult:
       | z.infer<typeof transportAdviceTool.outputSchema>
       | null = null;
     let poiResult: z.infer<typeof poiRecommendTool.outputSchema> | null = null;
 
-    if (shouldTransport && location) {
-      tasks.push(
-        generateTransportAdvice(location, structured.hearingTime ?? undefined)
-          .then((data) => {
-            transportResult = data;
-          })
-          .catch(() => {
-            transportResult = null;
-          })
-      );
-    }
-
-    if (shouldPoi && location) {
+    if ((shouldTransport || shouldPoi) && location) {
       const stayDuration = inputData.stayDurationHours ?? 2;
-      tasks.push(
-        getPoiRecommendations(location, stayDuration)
-          .then((data) => {
-            poiResult = data;
-          })
-          .catch(() => {
-            poiResult = null;
-          })
-      );
+      try {
+        const combined = await generateContextAdvice({
+          location,
+          hearingTime: structured.hearingTime ?? undefined,
+          stayDurationHours: stayDuration,
+          includeTransport: shouldTransport,
+          includePoi: shouldPoi,
+        });
+        transportResult = combined.transport;
+        poiResult = combined.poi;
+      } catch (error) {
+        transportResult = shouldTransport ? null : transportResult;
+        poiResult = shouldPoi ? null : poiResult;
+      }
     }
-
-    await Promise.all(tasks);
 
     return {
       structured,
