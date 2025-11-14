@@ -1,22 +1,10 @@
-import { Mastra } from "@mastra/core/mastra";
-import { PinoLogger } from "@mastra/loggers";
-import { z } from "zod";
-import { summonsAgent } from "./agents/summons-agent";
-import { summonsWorkflow } from "./workflows/summons-workflow";
-import { summonsAssistWorkflow } from "./workflows/summons-assist-workflow";
-import { CloudflareDeployer } from "@mastra/deployer-cloudflare";
-
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-const applyCorsHeaders = (c: any) => {
-  Object.entries(CORS_HEADERS).forEach(([key, value]) => {
-    c.header(key, value);
-  });
-};
+import { Mastra } from '@mastra/core/mastra';
+import { PinoLogger } from '@mastra/loggers';
+import { z } from 'zod';
+import { summonsAgent } from './agents/summons-agent';
+import { summonsWorkflow } from './workflows/summons-workflow';
+import { summonsAssistWorkflow } from './workflows/summons-assist-workflow';
+import { CloudflareDeployer } from '@mastra/deployer-cloudflare';
 
 type HttpFriendlyError = {
   status: number;
@@ -26,15 +14,13 @@ type HttpFriendlyError = {
 };
 
 const safeSerializeDetails = (value: unknown): Record<string, unknown> | null => {
-  if (!value || typeof value !== "object") {
+  if (!value || typeof value !== 'object') {
     return null;
   }
 
   try {
-    const serialized = JSON.stringify(
-      value,
-      (_, innerValue) =>
-        typeof innerValue === "bigint" ? innerValue.toString() : innerValue
+    const serialized = JSON.stringify(value, (_, innerValue) =>
+      typeof innerValue === 'bigint' ? innerValue.toString() : innerValue
     );
     return JSON.parse(serialized);
   } catch {
@@ -45,25 +31,15 @@ const safeSerializeDetails = (value: unknown): Record<string, unknown> | null =>
       };
     }
     return {
-      summary:
-        typeof value?.toString === "function"
-          ? value.toString()
-          : Object.prototype.toString.call(value),
+      summary: typeof value?.toString === 'function' ? value.toString() : Object.prototype.toString.call(value),
     };
   }
 };
 
-const normalizeErrorForResponse = (
-  error: unknown,
-  fallbackCode: string
-): HttpFriendlyError => {
+const normalizeErrorForResponse = (error: unknown, fallbackCode: string): HttpFriendlyError => {
   if (error instanceof Error) {
-    const status =
-      typeof (error as any).status === "number" ? (error as any).status : 500;
-    const code =
-      typeof (error as any).code === "string"
-        ? (error as any).code
-        : fallbackCode;
+    const status = typeof (error as any).status === 'number' ? (error as any).status : 500;
+    const code = typeof (error as any).code === 'string' ? (error as any).code : fallbackCode;
     return {
       status,
       code,
@@ -72,17 +48,10 @@ const normalizeErrorForResponse = (
     };
   }
 
-  if (error && typeof error === "object") {
-    const status =
-      typeof (error as any).status === "number" ? (error as any).status : 500;
-    const code =
-      typeof (error as any).code === "string"
-        ? (error as any).code
-        : fallbackCode;
-    const message =
-      typeof (error as any).message === "string"
-        ? (error as any).message
-        : JSON.stringify(error);
+  if (error && typeof error === 'object') {
+    const status = typeof (error as any).status === 'number' ? (error as any).status : 500;
+    const code = typeof (error as any).code === 'string' ? (error as any).code : fallbackCode;
+    const message = typeof (error as any).message === 'string' ? (error as any).message : JSON.stringify(error);
     return {
       status,
       code,
@@ -94,7 +63,7 @@ const normalizeErrorForResponse = (
   return {
     status: 500,
     code: fallbackCode,
-    message: typeof error === "string" ? error : "Unknown error",
+    message: typeof error === 'string' ? error : 'Unknown error',
     details: null,
   };
 };
@@ -112,8 +81,8 @@ export const mastra = new Mastra({
   workflows: { summonsWorkflow, summonsAssistWorkflow },
   agents: { summonsAgent },
   logger: new PinoLogger({
-    name: "Mastra",
-    level: "info",
+    name: 'Mastra',
+    level: 'info',
   }),
   observability: {
     // Enables DefaultExporter and CloudExporter for AI tracing
@@ -123,16 +92,21 @@ export const mastra = new Mastra({
     bodySizeLimit: 10 * 1024 * 1024,
     beforeHandle: [
       async (c, next) => {
+        const origin = c.req.header('Origin') || '*';
+        c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        c.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        c.header('Access-Control-Allow-Origin', '*'); // 或者你之前的 *
+
+        // 预检请求直接在这里返回
+        if (c.req.method === 'OPTIONS') {
+          return c.text('', 204);
+        }
+
         try {
           const res = await next();
-          applyCorsHeaders(c);
           return res;
         } catch (error) {
-          applyCorsHeaders(c);
-          const normalized = normalizeErrorForResponse(
-            error,
-            "UNHANDLED_ERROR"
-          );
+          const normalized = normalizeErrorForResponse(error, 'UNHANDLED_ERROR');
           return c.json(
             {
               error: normalized.code,
@@ -146,19 +120,16 @@ export const mastra = new Mastra({
     ],
     apiRoutes: [
       {
-        method: "OPTIONS",
-        path: "/api/summons/assist",
+        method: 'OPTIONS',
+        path: '/api/summons/assist',
         handler: async (c) => {
-          applyCorsHeaders(c);
-          return c.text("", 204);
+          return c.text('', 204);
         },
       },
       {
-        method: "POST",
-        path: "/api/summons/assist",
+        method: 'POST',
+        path: '/api/summons/assist',
         handler: async (c) => {
-          applyCorsHeaders(c);
-
           // Cloudflare Worker 会把环境变量挂到 c.env
           if ((c as any).env) {
             (globalThis as any).__ENV__ = {
@@ -173,22 +144,16 @@ export const mastra = new Mastra({
             if (!parsed.success) {
               return c.json(
                 {
-                  error: "INVALID_BODY",
-                  message: "请求参数不合法",
+                  error: 'INVALID_BODY',
+                  message: '请求参数不合法',
                   details: parsed.error.flatten(),
                 },
                 400
               );
             }
 
-            const {
-              pdfBase64,
-              question,
-              stayDurationHours,
-              includeWeather,
-              includeTransport,
-              includePoi,
-            } = parsed.data;
+            const { pdfBase64, question, stayDurationHours, includeWeather, includeTransport, includePoi } =
+              parsed.data;
 
             let pdfBuffer: string;
             try {
@@ -196,17 +161,15 @@ export const mastra = new Mastra({
             } catch {
               return c.json(
                 {
-                  error: "INVALID_PDF_BASE64",
-                  message: "PDF 内容解析失败",
+                  error: 'INVALID_PDF_BASE64',
+                  message: 'PDF 内容解析失败',
                 },
                 400
               );
             }
 
-            const mastraInstance = c.get("mastra");
-            const workflow = mastraInstance.getWorkflow(
-              "summonsAssistWorkflow"
-            );
+            const mastraInstance = c.get('mastra');
+            const workflow = mastraInstance.getWorkflow('summonsAssistWorkflow');
             const run = await (workflow as any).createRunAsync();
 
             const result = await run.start({
@@ -220,15 +183,12 @@ export const mastra = new Mastra({
               },
             });
 
-            if (result.status !== "success") {
+            if (result.status !== 'success') {
               const workflowError = (result as any).error;
-              const normalized = normalizeErrorForResponse(
-                workflowError,
-                "WORKFLOW_FAILED"
-              );
+              const normalized = normalizeErrorForResponse(workflowError, 'WORKFLOW_FAILED');
               mastraInstance.logger.error(
                 {
-                  msg: "summonsAssistWorkflow failed",
+                  msg: 'summonsAssistWorkflow failed',
                   error: normalized,
                 },
                 normalized.message
@@ -243,16 +203,13 @@ export const mastra = new Mastra({
               );
             }
 
-            return c.json({ status: "ok", data: result.result });
+            return c.json({ status: 'ok', data: result.result });
           } catch (error) {
-            const mastraInstance = c.get("mastra");
-            const normalized = normalizeErrorForResponse(
-              error,
-              "UNHANDLED_EXCEPTION"
-            );
+            const mastraInstance = c.get('mastra');
+            const normalized = normalizeErrorForResponse(error, 'UNHANDLED_EXCEPTION');
             mastraInstance.logger.error(
               {
-                msg: "summonsAssistWorkflow crashed",
+                msg: 'summonsAssistWorkflow crashed',
                 error: normalized,
               },
               normalized.message
@@ -271,19 +228,19 @@ export const mastra = new Mastra({
     ],
   },
   deployer: new CloudflareDeployer({
-    projectName: "my-lawyer-mastra-app",
+    projectName: 'my-lawyer-mastra-app',
     routes: [
       {
-        pattern: "bot.deepseafish.work/*",
-        zone_name: "deepseafish.work",
+        pattern: 'bot.deepseafish.work/*',
+        zone_name: 'deepseafish.work',
         custom_domain: true,
       },
     ],
-    workerNamespace: "my-namespace",
+    workerNamespace: 'my-namespace',
     env: {
-      NODE_ENV: "production",
-      API_KEY: "<api-key>",
-      OPENAI_API_KEY: "<openai-api-key>",
+      NODE_ENV: 'production',
+      API_KEY: '<api-key>',
+      OPENAI_API_KEY: '<openai-api-key>',
     },
   }),
 });
