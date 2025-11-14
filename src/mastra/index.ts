@@ -77,15 +77,17 @@ const summonsAssistRequestSchema = z.object({
   includePoi: z.boolean().optional(),
 });
 
+// ✅ 单独创建一个 logger，并传给 Mastra，同时自己也用它
+const logger = new PinoLogger({
+  name: 'Mastra',
+  level: 'info',
+});
+
 export const mastra = new Mastra({
   workflows: { summonsWorkflow, summonsAssistWorkflow },
   agents: { summonsAgent },
-  logger: new PinoLogger({
-    name: 'Mastra',
-    level: 'info',
-  }),
+  logger,
   // observability: {
-  //   // Enables DefaultExporter and CloudExporter for AI tracing
   //   default: { enabled: true },
   // },
   server: {
@@ -95,12 +97,15 @@ export const mastra = new Mastra({
         const origin = c.req.header('Origin') || '*';
         c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
         c.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        c.header('Access-Control-Allow-Origin', '*'); // 或者你之前的 *
+        c.header('Access-Control-Allow-Origin', '*');
 
-        // ✅ 入口日志：方便看到是谁在调用
-        console.log('[beforeHandle]', c.req.method, c.req.path, 'origin=', origin);
+        // 入口日志
+        logger.info('[beforeHandle]', {
+          method: c.req.method,
+          path: c.req.path,
+          origin,
+        });
 
-        // 预检请求直接在这里返回
         if (c.req.method === 'OPTIONS') {
           return c.text('', 204);
         }
@@ -110,6 +115,9 @@ export const mastra = new Mastra({
           return res;
         } catch (error) {
           const normalized = normalizeErrorForResponse(error, 'UNHANDLED_ERROR');
+          logger.error('[beforeHandle] error',{
+            error: normalized.message,
+          });
           return c.json(
             {
               error: normalized.code,
@@ -126,7 +134,8 @@ export const mastra = new Mastra({
         method: 'POST',
         path: '/api/summons/assist',
         handler: async (c) => {
-          mastra.logger.info({ msg: 'summonsAssistWorkflow request start' });
+          logger.info('summonsAssistWorkflow request start');
+
           // Cloudflare Worker 会把环境变量挂到 c.env
           if ((c as any).env) {
             (globalThis as any).__ENV__ = {
@@ -137,17 +146,11 @@ export const mastra = new Mastra({
 
           try {
             const body = await c.req.json();
-            mastra.logger.info({
-              msg: 'summonsAssistWorkflow body parsed',
-              // 体积太大就不要 log pdfBase64，只 log 长度
-              pdfLength: body?.pdfBase64?.length,
-            });
+            logger.info('summonsAssistWorkflow body parsed');
+
             const parsed = summonsAssistRequestSchema.safeParse(body);
             if (!parsed.success) {
-              mastra.logger.warn({
-                msg: 'summonsAssistWorkflow invalid body',
-                issues: parsed.error.flatten(),
-              });
+              logger.warn('summonsAssistWorkflow invalid body');
               return c.json(
                 {
                   error: 'INVALID_BODY',
@@ -165,9 +168,7 @@ export const mastra = new Mastra({
             try {
               pdfBuffer = pdfBase64;
             } catch {
-              mastra.logger.warn({
-                msg: 'summonsAssistWorkflow invalid pdf base64',
-              });
+              logger.warn('summonsAssistWorkflow invalid pdf base64');
               return c.json(
                 {
                   error: 'INVALID_PDF_BASE64',
@@ -194,13 +195,9 @@ export const mastra = new Mastra({
             if (result.status !== 'success') {
               const workflowError = (result as any).error;
               const normalized = normalizeErrorForResponse(workflowError, 'WORKFLOW_FAILED');
-              mastra.logger.error(
-                {
-                  msg: 'summonsAssistWorkflow failed',
-                  error: normalized,
-                },
-                normalized.message
-              );
+              logger.error('summonsAssistWorkflow failed', {
+                error: normalized.message,
+              });
               return c.json(
                 {
                   error: normalized.code,
@@ -210,20 +207,17 @@ export const mastra = new Mastra({
                 normalized.status
               );
             }
-            mastra.logger.info({
-              msg: 'summonsAssistWorkflow success',
+
+            logger.info('summonsAssistWorkflow success', {
               runId: (run as any).id ?? undefined,
             });
+
             return c.json({ status: 'ok', data: result.result });
           } catch (error) {
             const normalized = normalizeErrorForResponse(error, 'UNHANDLED_EXCEPTION');
-            mastra.logger.error(
-              {
-                msg: 'summonsAssistWorkflow crashed',
-                error: normalized,
-              },
-              normalized.message
-            );
+            logger.error('summonsAssistWorkflow crashed', {
+              error: normalized.message,
+            });
             return c.json(
               {
                 error: normalized.code,
