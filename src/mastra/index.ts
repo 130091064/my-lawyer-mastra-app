@@ -84,10 +84,10 @@ export const mastra = new Mastra({
     name: 'Mastra',
     level: 'info',
   }),
-  observability: {
-    // Enables DefaultExporter and CloudExporter for AI tracing
-    default: { enabled: true },
-  },
+  // observability: {
+  //   // Enables DefaultExporter and CloudExporter for AI tracing
+  //   default: { enabled: true },
+  // },
   server: {
     bodySizeLimit: 10 * 1024 * 1024,
     beforeHandle: [
@@ -96,6 +96,9 @@ export const mastra = new Mastra({
         c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
         c.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
         c.header('Access-Control-Allow-Origin', '*'); // 或者你之前的 *
+
+        // ✅ 入口日志：方便看到是谁在调用
+        console.log('[beforeHandle]', c.req.method, c.req.path, 'origin=', origin);
 
         // 预检请求直接在这里返回
         if (c.req.method === 'OPTIONS') {
@@ -120,16 +123,11 @@ export const mastra = new Mastra({
     ],
     apiRoutes: [
       {
-        method: 'OPTIONS',
-        path: '/api/summons/assist',
-        handler: async (c) => {
-          return c.text('', 204);
-        },
-      },
-      {
         method: 'POST',
         path: '/api/summons/assist',
         handler: async (c) => {
+          const mastraInstance = c.get('mastra');
+          mastraInstance.logger.info({ msg: 'summonsAssistWorkflow request start' });
           // Cloudflare Worker 会把环境变量挂到 c.env
           if ((c as any).env) {
             (globalThis as any).__ENV__ = {
@@ -140,8 +138,17 @@ export const mastra = new Mastra({
 
           try {
             const body = await c.req.json();
+            mastraInstance.logger.info({
+              msg: 'summonsAssistWorkflow body parsed',
+              // 体积太大就不要 log pdfBase64，只 log 长度
+              pdfLength: body?.pdfBase64?.length,
+            });
             const parsed = summonsAssistRequestSchema.safeParse(body);
             if (!parsed.success) {
+              mastraInstance.logger.warn({
+                msg: 'summonsAssistWorkflow invalid body',
+                issues: parsed.error.flatten(),
+              });
               return c.json(
                 {
                   error: 'INVALID_BODY',
@@ -159,6 +166,9 @@ export const mastra = new Mastra({
             try {
               pdfBuffer = pdfBase64;
             } catch {
+              mastraInstance.logger.warn({
+                msg: 'summonsAssistWorkflow invalid pdf base64',
+              });
               return c.json(
                 {
                   error: 'INVALID_PDF_BASE64',
@@ -168,7 +178,7 @@ export const mastra = new Mastra({
               );
             }
 
-            const mastraInstance = c.get('mastra');
+            // const mastraInstance = c.get('mastra');
             const workflow = mastraInstance.getWorkflow('summonsAssistWorkflow');
             const run = await (workflow as any).createRunAsync();
 
@@ -202,10 +212,13 @@ export const mastra = new Mastra({
                 normalized.status
               );
             }
-
+            mastraInstance.logger.info({
+              msg: 'summonsAssistWorkflow success',
+              runId: (run as any).id ?? undefined,
+            });
             return c.json({ status: 'ok', data: result.result });
           } catch (error) {
-            const mastraInstance = c.get('mastra');
+            // const mastraInstance = c.get('mastra');
             const normalized = normalizeErrorForResponse(error, 'UNHANDLED_EXCEPTION');
             mastraInstance.logger.error(
               {
