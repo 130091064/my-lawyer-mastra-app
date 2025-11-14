@@ -13,6 +13,10 @@ type HttpFriendlyError = {
   details: Record<string, unknown> | null;
 };
 
+type MastraInstance = {
+  getWorkflow(name: string): any;
+};
+
 const safeSerializeDetails = (value: unknown): Record<string, unknown> | null => {
   if (!value || typeof value !== 'object') {
     return null;
@@ -115,7 +119,7 @@ export const mastra = new Mastra({
           return res;
         } catch (error) {
           const normalized = normalizeErrorForResponse(error, 'UNHANDLED_ERROR');
-          logger.error('[beforeHandle] error',{
+          logger.error('[beforeHandle] error', {
             error: normalized.message,
           });
           return c.json(
@@ -150,7 +154,9 @@ export const mastra = new Mastra({
 
             const parsed = summonsAssistRequestSchema.safeParse(body);
             if (!parsed.success) {
-              logger.warn('summonsAssistWorkflow invalid body');
+              logger.warn('summonsAssistWorkflow invalid body', {
+                issues: parsed.error.flatten(),
+              });
               return c.json(
                 {
                   error: 'INVALID_BODY',
@@ -164,21 +170,12 @@ export const mastra = new Mastra({
             const { pdfBase64, question, stayDurationHours, includeWeather, includeTransport, includePoi } =
               parsed.data;
 
-            let pdfBuffer: string;
-            try {
-              pdfBuffer = pdfBase64;
-            } catch {
-              logger.warn('summonsAssistWorkflow invalid pdf base64');
-              return c.json(
-                {
-                  error: 'INVALID_PDF_BASE64',
-                  message: 'PDF 内容解析失败',
-                },
-                400
-              );
-            }
+            const pdfBuffer = pdfBase64;
+            // ⭐ 正确拿到运行时的 Mastra 实例
+            const mastraInstance: MastraInstance = (c.get('mastra') as any as MastraInstance) ?? (mastra as any);
 
-            const workflow = mastra.getWorkflow('summonsAssistWorkflow') as any;
+            // ⭐ 用实例上的 getWorkflow
+            const workflow = mastraInstance.getWorkflow('summonsAssistWorkflow');
             const run = await (workflow as any).createRunAsync();
 
             const result = await run.start({
@@ -195,9 +192,7 @@ export const mastra = new Mastra({
             if (result.status !== 'success') {
               const workflowError = (result as any).error;
               const normalized = normalizeErrorForResponse(workflowError, 'WORKFLOW_FAILED');
-              logger.error('summonsAssistWorkflow failed', {
-                error: normalized.message,
-              });
+              logger.error('summonsAssistWorkflow failed', normalized);
               return c.json(
                 {
                   error: normalized.code,
