@@ -126,8 +126,7 @@ export const mastra = new Mastra({
         method: 'POST',
         path: '/api/summons/assist',
         handler: async (c) => {
-          const mastraInstance = c.get('mastra');
-          mastraInstance.logger.info({ msg: 'summonsAssistWorkflow request start' });
+          mastra.logger.info({ msg: 'summonsAssistWorkflow request start' });
           // Cloudflare Worker 会把环境变量挂到 c.env
           if ((c as any).env) {
             (globalThis as any).__ENV__ = {
@@ -138,14 +137,14 @@ export const mastra = new Mastra({
 
           try {
             const body = await c.req.json();
-            mastraInstance.logger.info({
+            mastra.logger.info({
               msg: 'summonsAssistWorkflow body parsed',
               // 体积太大就不要 log pdfBase64，只 log 长度
               pdfLength: body?.pdfBase64?.length,
             });
             const parsed = summonsAssistRequestSchema.safeParse(body);
             if (!parsed.success) {
-              mastraInstance.logger.warn({
+              mastra.logger.warn({
                 msg: 'summonsAssistWorkflow invalid body',
                 issues: parsed.error.flatten(),
               });
@@ -166,7 +165,7 @@ export const mastra = new Mastra({
             try {
               pdfBuffer = pdfBase64;
             } catch {
-              mastraInstance.logger.warn({
+              mastra.logger.warn({
                 msg: 'summonsAssistWorkflow invalid pdf base64',
               });
               return c.json(
@@ -178,8 +177,7 @@ export const mastra = new Mastra({
               );
             }
 
-            // const mastraInstance = c.get('mastra');
-            const workflow = mastraInstance.getWorkflow('summonsAssistWorkflow');
+            const workflow = mastra.getWorkflow('summonsAssistWorkflow') as any;
             const run = await (workflow as any).createRunAsync();
 
             const result = await run.start({
@@ -196,7 +194,7 @@ export const mastra = new Mastra({
             if (result.status !== 'success') {
               const workflowError = (result as any).error;
               const normalized = normalizeErrorForResponse(workflowError, 'WORKFLOW_FAILED');
-              mastraInstance.logger.error(
+              mastra.logger.error(
                 {
                   msg: 'summonsAssistWorkflow failed',
                   error: normalized,
@@ -212,15 +210,14 @@ export const mastra = new Mastra({
                 normalized.status
               );
             }
-            mastraInstance.logger.info({
+            mastra.logger.info({
               msg: 'summonsAssistWorkflow success',
               runId: (run as any).id ?? undefined,
             });
             return c.json({ status: 'ok', data: result.result });
           } catch (error) {
-            // const mastraInstance = c.get('mastra');
             const normalized = normalizeErrorForResponse(error, 'UNHANDLED_EXCEPTION');
-            mastraInstance.logger.error(
+            mastra.logger.error(
               {
                 msg: 'summonsAssistWorkflow crashed',
                 error: normalized,
